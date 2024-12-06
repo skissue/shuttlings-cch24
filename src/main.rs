@@ -125,13 +125,9 @@ fn order_manifests(body: Vec<u8>) -> Response {
             .status(StatusCode::BAD_REQUEST)
             .body("Invalid manifest");
     };
-    let Some(package) = manifest.package else {
+    let Some(metadata) = manifest.package.and_then(|p| p.metadata) else {
         return StatusCode::NO_CONTENT.into();
     };
-    let Some(metadata) = package.metadata else {
-        return StatusCode::NO_CONTENT.into();
-    };
-
     let orders = metadata["orders"].as_array().unwrap();
 
     let items: String = orders
