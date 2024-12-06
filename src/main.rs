@@ -90,10 +90,7 @@ fn encrypt_address_ipv6(params: Query<EncryptParamsV6>) -> String {
         .map(|(a, b)| a ^ b)
         .collect();
 
-    let mut octets: [u8; 16] = [0; 16];
-    for i in 0..16 {
-        octets[i] = xored[i];
-    }
+    let mut octets: [u8; 16] = xored.try_into().unwrap();
 
     let to = Ipv6Addr::from(octets);
 
@@ -111,10 +108,7 @@ fn get_address_key_ipv6(params: Query<KeyParamsV6>) -> String {
         .map(|(a, b)| a ^ b)
         .collect();
 
-    let mut octets: [u8; 16] = [0; 16];
-    for i in 0..16 {
-        octets[i] = xored[i];
-    }
+    let mut octets: [u8; 16] = xored.try_into().unwrap();
 
     let key = Ipv6Addr::from(octets);
 
