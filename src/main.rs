@@ -125,9 +125,27 @@ fn order_manifests(body: Vec<u8>) -> Response {
             .status(StatusCode::BAD_REQUEST)
             .body("Invalid manifest");
     };
-    let Some(orders) = manifest
-        .package
-        .and_then(|p| p.metadata)
+
+    let Some(package) = manifest.package else {
+        return StatusCode::NO_CONTENT.into();
+    };
+    if package
+        .keywords
+        .filter(|k| {
+            k.as_ref()
+                .as_local()
+                .unwrap()
+                .contains(&"Christmas 2024".to_owned())
+        })
+        .is_none()
+    {
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body("Magic keyword not provided");
+    };
+
+    let Some(orders) = package
+        .metadata
         .and_then(|m| Some(m.get("orders")?.as_array()?.to_owned()))
     else {
         return StatusCode::NO_CONTENT.into();
