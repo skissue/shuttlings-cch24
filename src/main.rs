@@ -31,6 +31,12 @@ struct EncryptParams {
     key: Ipv4Addr,
 }
 
+#[derive(Deserialize)]
+struct KeyParams {
+    from: Ipv4Addr,
+    to: Ipv4Addr,
+}
+
 #[handler]
 fn encrypt_address(params: Query<EncryptParams>) -> String {
     let Query(EncryptParams { from, key }) = params;
@@ -46,12 +52,28 @@ fn encrypt_address(params: Query<EncryptParams>) -> String {
     dest.to_string()
 }
 
+#[handler]
+fn get_address_key(params: Query<KeyParams>) -> String {
+    let Query(KeyParams { from, to }) = params;
+
+    let diffed: Vec<u8> = from
+        .octets()
+        .into_iter()
+        .zip(to.octets().into_iter())
+        .map(|(a, b)| b.wrapping_sub(a))
+        .collect();
+    let key = Ipv4Addr::new(diffed[0], diffed[1], diffed[2], diffed[3]);
+
+    key.to_string()
+}
+
 #[shuttle_runtime::main]
 async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
         .at("/", get(hello_bird))
         .at("/-1/seek", get(seek))
-        .at("/2/dest", get(encrypt_address));
+        .at("/2/dest", get(encrypt_address))
+        .at("/2/key", get(get_address_key));
 
     Ok(app.into())
 }
