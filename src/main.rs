@@ -1,13 +1,16 @@
-use std::net::{Ipv4Addr, Ipv6Addr};
-
+use cargo_manifest::Manifest;
+use itertools::Itertools;
 use poem::{
     get, handler,
     http::{header, StatusCode},
+    post,
     web::Query,
     Response, Route,
 };
 use serde::Deserialize;
 use shuttle_poem::ShuttlePoem;
+use std::net::{Ipv4Addr, Ipv6Addr};
+use toml::Table;
 
 #[handler]
 fn hello_bird() -> &'static str {
@@ -115,6 +118,40 @@ fn get_address_key_ipv6(params: Query<KeyParamsV6>) -> String {
     key.to_string()
 }
 
+#[handler]
+fn order_manifests(body: Vec<u8>) -> Response {
+    let Ok(manifest) = Manifest::from_slice(&body) else {
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body("Invalid manifest");
+    };
+    let Some(package) = manifest.package else {
+        return StatusCode::NO_CONTENT.into();
+    };
+    let Some(metadata) = package.metadata else {
+        return StatusCode::NO_CONTENT.into();
+    };
+
+    let orders = metadata["orders"].as_array().unwrap();
+
+    let items: String = orders
+        .into_iter()
+        .filter_map(|map| {
+            let item = map.get("item")?.as_str()?;
+            let quantity = map.get("quantity")?.as_integer()?;
+
+            Some(format!("{}: {}", item, quantity))
+        })
+        .intersperse("\n".to_owned())
+        .collect();
+
+    if items.is_empty() {
+        return StatusCode::NO_CONTENT.into();
+    }
+
+    items.into()
+}
+
 #[shuttle_runtime::main]
 async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
@@ -123,7 +160,8 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/2/dest", get(encrypt_address))
         .at("/2/key", get(get_address_key))
         .at("/2/v6/dest", get(encrypt_address_ipv6))
-        .at("/2/v6/key", get(get_address_key_ipv6));
+        .at("/2/v6/key", get(get_address_key_ipv6))
+        .at("/5/manifest", post(order_manifests));
 
     Ok(app.into())
 }

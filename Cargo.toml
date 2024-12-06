@@ -4,8 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cargo-manifest = "0.17.0"
+itertools = "0.13.0"
 poem = "3.0.0"
 serde = { version = "1.0.215", features = ["derive"] }
 shuttle-poem = "0.49.0"
 shuttle-runtime = "0.49.0"
 tokio = "1.26.0"
+toml = "0.8.19"
