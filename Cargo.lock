@@ -1749,6 +1749,7 @@ dependencies = [
  "leaky-bucket",
  "poem",
  "serde",
+ "serde_json",
  "shuttle-poem",
  "shuttle-runtime",
  "tokio",
