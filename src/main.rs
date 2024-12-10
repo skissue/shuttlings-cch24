@@ -4,12 +4,16 @@ use poem::{
     get, handler,
     http::{header, StatusCode},
     post,
-    web::Query,
-    Response, Route,
+    web::{Data, Query},
+    EndpointExt, Response, Route,
 };
 use serde::Deserialize;
 use shuttle_poem::ShuttlePoem;
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    sync::Arc,
+    time::Duration,
+};
 use toml::Table;
 
 #[handler]
@@ -169,6 +173,20 @@ fn order_manifests(body: Vec<u8>) -> Response {
     items.into()
 }
 
+#[derive(Clone)]
+struct MilkBucket(Arc<leaky_bucket::RateLimiter>);
+
+#[handler]
+async fn leaky_milk(bucket: Data<&MilkBucket>) -> Response {
+    if !bucket.0 .0.try_acquire(1) {
+        return Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .body("No milk available\n");
+    }
+
+    "Milk withdrawn\n".into()
+}
+
 #[shuttle_runtime::main]
 async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
@@ -178,7 +196,14 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/2/key", get(get_address_key))
         .at("/2/v6/dest", get(encrypt_address_ipv6))
         .at("/2/v6/key", get(get_address_key_ipv6))
-        .at("/5/manifest", post(order_manifests));
+        .at("/5/manifest", post(order_manifests))
+        .at("/9/milk", post(leaky_milk))
+        .data(MilkBucket(Arc::new(
+            leaky_bucket::RateLimiter::builder()
+                .max(5)
+                .interval(Duration::from_secs(1))
+                .build(),
+        )));
 
     Ok(app.into())
 }
