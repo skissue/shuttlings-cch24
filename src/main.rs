@@ -1,13 +1,13 @@
 mod connect4;
 
 use cargo_manifest::Manifest;
-use connect4::Connect4;
+use connect4::{Connect4, MoveError, Tile};
 use itertools::Itertools;
 use poem::{
     get, handler,
     http::{header, HeaderMap, StatusCode},
     post,
-    web::{Data, Query},
+    web::{Data, Path, Query},
     EndpointExt, Response, Route,
 };
 use serde::{Deserialize, Serialize};
@@ -248,6 +248,30 @@ async fn reset_connect4_board(board: Data<&Arc<RwLock<Connect4>>>) -> String {
     format!("{}", board.0.read().await)
 }
 
+#[handler]
+async fn play_connect4(
+    board: Data<&Arc<RwLock<Connect4>>>,
+    Path((team, column)): Path<(String, String)>,
+) -> Response {
+    let team = match team.as_str() {
+        "cookie" => Tile::Cookie,
+        "milk" => Tile::Milk,
+        _ => return StatusCode::BAD_REQUEST.into(),
+    };
+    let Ok(column) = column.parse() else {
+        return StatusCode::BAD_REQUEST.into();
+    };
+
+    let mut board = board.0.write().await;
+    match board.play(team, column) {
+        Err(MoveError::InvalidColumn) => StatusCode::BAD_REQUEST.into(),
+        Err(MoveError::ColumnFull) | Err(MoveError::GameOver) => Response::builder()
+            .status(StatusCode::SERVICE_UNAVAILABLE)
+            .body(format!("{}", board)),
+        _ => format!("{}", board).into(),
+    }
+}
+
 #[shuttle_runtime::main]
 async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
@@ -262,6 +286,7 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/9/refill", post(fill_milk_bucket))
         .at("/12/board", get(get_connect4_board))
         .at("/12/reset", post(reset_connect4_board))
+        .at("/12/place/:team/:column", post(play_connect4))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
