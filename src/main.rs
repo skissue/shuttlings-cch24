@@ -7,10 +7,7 @@ use poem::{
     get, handler,
     http::{header, HeaderMap, StatusCode},
     post,
-    web::{
-        headers::{ContentType, Header},
-        Data, Query, TypedHeader,
-    },
+    web::{Data, Query},
     EndpointExt, Response, Route,
 };
 use serde::{Deserialize, Serialize};
@@ -21,7 +18,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{Mutex, RwLock};
-use toml::Table;
 
 #[handler]
 fn hello_bird() -> &'static str {
