@@ -1,4 +1,7 @@
+mod connect4;
+
 use cargo_manifest::Manifest;
+use connect4::Connect4;
 use itertools::Itertools;
 use poem::{
     get, handler,
@@ -13,12 +16,11 @@ use poem::{
 use serde::{Deserialize, Serialize};
 use shuttle_poem::ShuttlePoem;
 use std::{
-    cell::RefCell,
     net::{Ipv4Addr, Ipv6Addr},
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::Duration,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use toml::Table;
 
 #[handler]
@@ -239,6 +241,17 @@ async fn fill_milk_bucket(bucket: Data<&MilkBucket>) {
         .build();
 }
 
+#[handler]
+async fn get_connect4_board(board: Data<&Arc<RwLock<Connect4>>>) -> String {
+    format!("{}", board.0.read().await)
+}
+
+#[handler]
+async fn reset_connect4_board(board: Data<&Arc<RwLock<Connect4>>>) -> String {
+    *board.0.write().await = Connect4::empty();
+    format!("{}", board.0.read().await)
+}
+
 #[shuttle_runtime::main]
 async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
@@ -251,13 +264,16 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/5/manifest", post(order_manifests))
         .at("/9/milk", post(leaky_milk))
         .at("/9/refill", post(fill_milk_bucket))
+        .at("/12/board", get(get_connect4_board))
+        .at("/12/reset", post(reset_connect4_board))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
                 .max(5)
                 .interval(Duration::from_secs(1))
                 .build(),
-        ))));
+        ))))
+        .data(Arc::new(RwLock::new(Connect4::empty())));
 
     Ok(app.into())
 }
