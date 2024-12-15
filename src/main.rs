@@ -10,6 +10,7 @@ use poem::{
     web::{Data, Path, Query},
     EndpointExt, Response, Route,
 };
+use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 use shuttle_poem::ShuttlePoem;
 use std::{
@@ -243,8 +244,12 @@ async fn get_connect4_board(board: Data<&Arc<RwLock<Connect4>>>) -> String {
 }
 
 #[handler]
-async fn reset_connect4_board(board: Data<&Arc<RwLock<Connect4>>>) -> String {
+async fn reset_connect4_board(
+    board: Data<&Arc<RwLock<Connect4>>>,
+    rng: Data<&Connect4Rng>,
+) -> String {
     *board.0.write().await = Connect4::empty();
+    *rng.0.0.write().await = rand::rngs::StdRng::seed_from_u64(2024);
     format!("{}", board.0.read().await)
 }
 
@@ -272,6 +277,14 @@ async fn play_connect4(
     }
 }
 
+#[derive(Clone)]
+struct Connect4Rng(Arc<RwLock<rand::rngs::StdRng>>);
+
+#[handler]
+async fn get_random_connect4(rng: Data<&Connect4Rng>) -> String {
+    format!("{}", Connect4::random(&mut *rng.0 .0.write().await))
+}
+
 #[shuttle_runtime::main]
 async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
@@ -287,6 +300,7 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/12/board", get(get_connect4_board))
         .at("/12/reset", post(reset_connect4_board))
         .at("/12/place/:team/:column", post(play_connect4))
+        .at("/12/random-board", get(get_random_connect4))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
@@ -294,7 +308,10 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
                 .interval(Duration::from_secs(1))
                 .build(),
         ))))
-        .data(Arc::new(RwLock::new(Connect4::empty())));
+        .data(Arc::new(RwLock::new(Connect4::empty())))
+        .data(Connect4Rng(Arc::new(RwLock::new(
+            rand::rngs::StdRng::seed_from_u64(2024),
+        ))));
 
     Ok(app.into())
 }

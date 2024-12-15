@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use rand::Rng;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tile {
     Empty,
@@ -35,10 +37,24 @@ pub struct Connect4 {
 }
 
 impl Connect4 {
-    pub fn empty() -> Connect4 {
+    pub fn empty() -> Self {
         Connect4 {
             board: [[Tile::Empty; 4]; 4],
         }
+    }
+
+    pub fn random(rng: &mut rand::rngs::StdRng) -> Self {
+        let mut board = [[Tile::Milk; 4]; 4];
+
+        for y in 0..4 {
+            for x in 0..4 {
+                if rng.gen() {
+                    board[x][y] = Tile::Cookie;
+                }
+            }
+        }
+
+        Self { board }
     }
 
     pub fn play(&mut self, team: Tile, col_idx: usize) -> Result<(), MoveError> {
