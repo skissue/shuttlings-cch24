@@ -287,16 +287,11 @@ async fn get_random_connect4(rng: Data<&Connect4Rng>) -> String {
     format!("{}", Connect4::random(&mut *rng.0 .0.write().await))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct GiftData {
-    data: String,
-}
-
 #[handler]
 async fn wrap_gift(body: String) -> Response {
     let jwt = jsonwebtoken::encode(
         &Header::default(),
-        &GiftData { data: body },
+        &serde_json::from_str::<serde_json::Value>(&body).expect("Input is valid JSON"),
         &EncodingKey::from_secret(b"a"),
     )
     .expect("Failed to encode JWT");
@@ -321,13 +316,13 @@ async fn unwrap_gift(headers: &HeaderMap) -> Response {
     validation.validate_exp = false;
 
     let Ok(decoded) =
-        jsonwebtoken::decode::<GiftData>(cookie, &DecodingKey::from_secret(b"a"), &validation)
+        jsonwebtoken::decode::<serde_json::Value>(cookie, &DecodingKey::from_secret(b"a"), &validation)
             .map(|d| d.claims)
     else {
         return StatusCode::BAD_REQUEST.into();
     };
 
-    decoded.data.into()
+    decoded.to_string().into()
 }
 
 #[handler]
