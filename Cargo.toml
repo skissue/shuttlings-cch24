@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 cargo-manifest = "0.17.0"
 itertools = "0.13.0"
+jsonwebtoken = "9.3.0"
 leaky-bucket = "1.1.2"
 poem = "3.0.0"
 rand = "0.8.5"

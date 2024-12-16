@@ -3,6 +3,7 @@ mod connect4;
 use cargo_manifest::Manifest;
 use connect4::{Connect4, MoveError, Tile};
 use itertools::Itertools;
+use jsonwebtoken::{EncodingKey, Header};
 use poem::{
     get, handler,
     http::{header, HeaderMap, StatusCode},
@@ -249,7 +250,7 @@ async fn reset_connect4_board(
     rng: Data<&Connect4Rng>,
 ) -> String {
     *board.0.write().await = Connect4::empty();
-    *rng.0.0.write().await = rand::rngs::StdRng::seed_from_u64(2024);
+    *rng.0 .0.write().await = rand::rngs::StdRng::seed_from_u64(2024);
     format!("{}", board.0.read().await)
 }
 
@@ -285,6 +286,16 @@ async fn get_random_connect4(rng: Data<&Connect4Rng>) -> String {
     format!("{}", Connect4::random(&mut *rng.0 .0.write().await))
 }
 
+#[handler]
+async fn wrap_gift(body: String) -> Response {
+    let jwt = jsonwebtoken::encode(&Header::default(), &body, &EncodingKey::from_secret(b"a"))
+        .expect("Failed to encode JWT");
+
+    Response::builder()
+        .header("Set-Cookie", format!("gift={jwt}",))
+        .body(())
+}
+
 #[shuttle_runtime::main]
 async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
@@ -301,6 +312,7 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/12/reset", post(reset_connect4_board))
         .at("/12/place/:team/:column", post(play_connect4))
         .at("/12/random-board", get(get_random_connect4))
+        .at("/16/wrap", post(wrap_gift))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
