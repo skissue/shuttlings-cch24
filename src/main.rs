@@ -3,7 +3,7 @@ mod connect4;
 use cargo_manifest::Manifest;
 use connect4::{Connect4, MoveError, Tile};
 use itertools::Itertools;
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{errors::ErrorKind as JWTError, DecodingKey, EncodingKey, Header, Validation};
 use poem::{
     get, handler,
     http::{header, HeaderMap, HeaderValue, StatusCode},
@@ -15,7 +15,10 @@ use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 use shuttle_poem::ShuttlePoem;
 use std::{
-    collections::HashSet, net::{Ipv4Addr, Ipv6Addr}, sync::Arc, time::Duration
+    collections::HashSet,
+    net::{Ipv4Addr, Ipv6Addr},
+    sync::Arc,
+    time::Duration,
 };
 use tokio::sync::{Mutex, RwLock};
 
@@ -312,11 +315,11 @@ async fn unwrap_gift(headers: &HeaderMap) -> Response {
     else {
         return StatusCode::BAD_REQUEST.into();
     };
-    
+
     let mut validation = Validation::default();
     validation.required_spec_claims = HashSet::new();
     validation.validate_exp = false;
-    
+
     let Ok(decoded) =
         jsonwebtoken::decode::<GiftData>(cookie, &DecodingKey::from_secret(b"a"), &validation)
             .map(|d| d.claims)
@@ -325,6 +328,34 @@ async fn unwrap_gift(headers: &HeaderMap) -> Response {
     };
 
     decoded.data.into()
+}
+
+#[handler]
+async fn decode_old_gift(body: String) -> Response {
+    let mut validation = Validation::default();
+    validation.required_spec_claims = HashSet::new();
+    validation.validate_exp = false;
+    validation.algorithms = vec![jsonwebtoken::Algorithm::RS256, jsonwebtoken::Algorithm::RS512];
+
+    let decoded = match jsonwebtoken::decode::<serde_json::Value>(
+        &body,
+        &DecodingKey::from_rsa_pem(include_bytes!("../day16_santa_public_key.pem"))
+            .expect("Key from filesystem is valid"),
+        &validation,
+    )
+    .map(|c| c.claims)
+    {
+        Ok(decoded) => decoded,
+        Err(err) => {
+            return (match err.into_kind() {
+                JWTError::InvalidSignature => StatusCode::UNAUTHORIZED,
+                _ => StatusCode::BAD_REQUEST,
+            })
+            .into()
+        }
+    };
+
+    decoded.to_string().into()
 }
 
 #[shuttle_runtime::main]
@@ -345,6 +376,7 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/12/random-board", get(get_random_connect4))
         .at("/16/wrap", post(wrap_gift))
         .at("/16/unwrap", get(unwrap_gift))
+        .at("/16/decode", post(decode_old_gift))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
