@@ -3,10 +3,10 @@ mod connect4;
 use cargo_manifest::Manifest;
 use connect4::{Connect4, MoveError, Tile};
 use itertools::Itertools;
-use jsonwebtoken::{EncodingKey, Header};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation};
 use poem::{
     get, handler,
-    http::{header, HeaderMap, StatusCode},
+    http::{header, HeaderMap, HeaderValue, StatusCode},
     post,
     web::{Data, Path, Query},
     EndpointExt, Response, Route,
@@ -15,9 +15,7 @@ use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 use shuttle_poem::ShuttlePoem;
 use std::{
-    net::{Ipv4Addr, Ipv6Addr},
-    sync::Arc,
-    time::Duration,
+    collections::HashSet, net::{Ipv4Addr, Ipv6Addr}, sync::Arc, time::Duration
 };
 use tokio::sync::{Mutex, RwLock};
 
@@ -286,14 +284,47 @@ async fn get_random_connect4(rng: Data<&Connect4Rng>) -> String {
     format!("{}", Connect4::random(&mut *rng.0 .0.write().await))
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct GiftData {
+    data: String,
+}
+
 #[handler]
 async fn wrap_gift(body: String) -> Response {
-    let jwt = jsonwebtoken::encode(&Header::default(), &body, &EncodingKey::from_secret(b"a"))
-        .expect("Failed to encode JWT");
+    let jwt = jsonwebtoken::encode(
+        &Header::default(),
+        &GiftData { data: body },
+        &EncodingKey::from_secret(b"a"),
+    )
+    .expect("Failed to encode JWT");
 
     Response::builder()
         .header("Set-Cookie", format!("gift={jwt}",))
         .body(())
+}
+
+#[handler]
+async fn unwrap_gift(headers: &HeaderMap) -> Response {
+    let Some(cookie) = headers
+        .get("Cookie")
+        .and_then(|c| c.to_str().ok())
+        .and_then(|c| c.strip_prefix("gift="))
+    else {
+        return StatusCode::BAD_REQUEST.into();
+    };
+    
+    let mut validation = Validation::default();
+    validation.required_spec_claims = HashSet::new();
+    validation.validate_exp = false;
+    
+    let Ok(decoded) =
+        jsonwebtoken::decode::<GiftData>(cookie, &DecodingKey::from_secret(b"a"), &validation)
+            .map(|d| d.claims)
+    else {
+        return StatusCode::BAD_REQUEST.into();
+    };
+
+    decoded.data.into()
 }
 
 #[shuttle_runtime::main]
@@ -313,6 +344,7 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .at("/12/place/:team/:column", post(play_connect4))
         .at("/12/random-board", get(get_random_connect4))
         .at("/16/wrap", post(wrap_gift))
+        .at("/16/unwrap", get(unwrap_gift))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
