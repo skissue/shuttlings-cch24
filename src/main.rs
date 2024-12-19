@@ -17,6 +17,7 @@ use shuttle_poem::ShuttlePoem;
 use std::{
     collections::HashSet,
     net::{Ipv4Addr, Ipv6Addr},
+    str::FromStr,
     sync::Arc,
     time::Duration,
 };
@@ -129,8 +130,23 @@ fn get_address_key_ipv6(params: Query<KeyParamsV6>) -> String {
 }
 
 #[handler]
-fn order_manifests(body: Vec<u8>) -> Response {
-    let Ok(manifest) = Manifest::from_slice(&body) else {
+fn order_manifests(headers: &HeaderMap, body: String) -> Response {
+    // This is a horrendous shortcut, but hey, it works, and if it ain't broke,
+    // don't fix it ¯\_(ツ)_/¯.
+    let Some(data) = (match headers.get("Content-Type").and_then(|v| v.to_str().ok()) {
+        Some("application/toml") => Some(body),
+        Some("application/json") => serde_json::from_str(&body)
+            .ok()
+            .and_then(|v: serde_json::Value| toml::ser::to_string(&v).ok()),
+        Some("application/yaml") => serde_yaml::from_str(&body)
+            .ok()
+            .and_then(|v: serde_json::Value| toml::ser::to_string(&v).ok()),
+        _ => None,
+    }) else {
+        return StatusCode::UNSUPPORTED_MEDIA_TYPE.into();
+    };
+
+    let Ok(manifest) = Manifest::from_str(&data) else {
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body("Invalid manifest");
@@ -315,10 +331,12 @@ async fn unwrap_gift(headers: &HeaderMap) -> Response {
     validation.required_spec_claims = HashSet::new();
     validation.validate_exp = false;
 
-    let Ok(decoded) =
-        jsonwebtoken::decode::<serde_json::Value>(cookie, &DecodingKey::from_secret(b"a"), &validation)
-            .map(|d| d.claims)
-    else {
+    let Ok(decoded) = jsonwebtoken::decode::<serde_json::Value>(
+        cookie,
+        &DecodingKey::from_secret(b"a"),
+        &validation,
+    )
+    .map(|d| d.claims) else {
         return StatusCode::BAD_REQUEST.into();
     };
 
@@ -330,7 +348,10 @@ async fn decode_old_gift(body: String) -> Response {
     let mut validation = Validation::default();
     validation.required_spec_claims = HashSet::new();
     validation.validate_exp = false;
-    validation.algorithms = vec![jsonwebtoken::Algorithm::RS256, jsonwebtoken::Algorithm::RS512];
+    validation.algorithms = vec![
+        jsonwebtoken::Algorithm::RS256,
+        jsonwebtoken::Algorithm::RS512,
+    ];
 
     let decoded = match jsonwebtoken::decode::<serde_json::Value>(
         &body,
