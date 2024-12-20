@@ -6,7 +6,7 @@ use connect4::{Connect4, MoveError, Tile};
 use itertools::Itertools;
 use jsonwebtoken::{errors::ErrorKind as JWTError, DecodingKey, EncodingKey, Header, Validation};
 use poem::{
-    get, handler,
+    delete, get, handler,
     http::{header, HeaderMap, StatusCode},
     post,
     web::{Data, Path, Query},
@@ -427,6 +427,19 @@ async fn quotes_cite(pool: Data<&PgPool>, id: Path<Uuid>) -> Response {
     serde_json::to_string(&quote).unwrap().into()
 }
 
+#[handler]
+async fn quotes_delete(pool: Data<&PgPool>, id: Path<Uuid>) -> Response {
+    let result = sqlx::query_as!(Quote, "DELETE FROM quotes WHERE id = $1 RETURNING *", *id)
+        .fetch_optional(*pool)
+        .await
+        .unwrap();
+    let Some(quote) = result else {
+        return StatusCode::NOT_FOUND.into();
+    };
+
+    serde_json::to_string(&quote).unwrap().into()
+}
+
 #[shuttle_runtime::main]
 async fn poem(
     #[shuttle_shared_db::Postgres(local_uri = "postgres://localhost:5432/")] pool: sqlx::PgPool,
@@ -451,6 +464,7 @@ async fn poem(
         .at("/19/reset", post(quotes_reset))
         .at("/19/draft", post(quotes_draft))
         .at("/19/cite/:id", get(quotes_cite))
+        .at("/19/remove/:id", delete(quotes_delete))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
