@@ -375,7 +375,9 @@ async fn decode_old_gift(body: String) -> Response {
 }
 
 #[shuttle_runtime::main]
-async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
+async fn poem(
+    #[shuttle_shared_db::Postgres] pool: sqlx::PgPool,
+) -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
         .at("/", get(hello_bird))
         .at("/-1/seek", get(seek))
@@ -403,7 +405,8 @@ async fn poem() -> ShuttlePoem<impl poem::Endpoint> {
         .data(Arc::new(RwLock::new(Connect4::empty())))
         .data(Connect4Rng(Arc::new(RwLock::new(
             rand::rngs::StdRng::seed_from_u64(2024),
-        ))));
+        ))))
+        .data(pool);
 
     Ok(app.into())
 }

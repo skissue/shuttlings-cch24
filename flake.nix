@@ -17,7 +17,16 @@
   in {
     devShells.${system}.default = with pkgs;
       pkgs.devshell.mkShell {
-        packages = [rustc cargo rustfmt cargo-shuttle postgresql];
+        packages = [
+          rustc
+          cargo
+          gcc
+          rustfmt
+
+          cargo-shuttle
+          postgresql
+          sqlx-cli
+        ];
         commands = [
           {
             name = "database:init";
@@ -33,6 +42,12 @@
           description = "Run a development PostgreSQL server";
           services.postgres = {command = "postgres -D ./pgdata";};
         };
+        env = [
+          {
+            name = "DATABASE_URL";
+            value = "postgresql://localhost:5432/";
+          }
+        ];
       };
   };
 }
