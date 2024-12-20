@@ -17,7 +17,22 @@
   in {
     devShells.${system}.default = with pkgs;
       pkgs.devshell.mkShell {
-        packages = [rustc cargo rustfmt cargo-shuttle];
+        packages = [rustc cargo rustfmt cargo-shuttle postgresql];
+        commands = [
+          {
+            name = "database:init";
+            help = "Initialize the Postgres database";
+            command = ''
+              initdb pgdata; \
+              chmod -R 700 pgdata; \
+              echo -e "Use the devshell command 'database:start'"
+            '';
+          }
+        ];
+        serviceGroups.database = {
+          description = "Run a development PostgreSQL server";
+          services.postgres = {command = "postgres -D ./pgdata";};
+        };
       };
   };
 }
