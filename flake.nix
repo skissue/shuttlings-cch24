@@ -1,15 +1,23 @@
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    devshell.url = "github:numtide/devshell";
   };
 
-  outputs = {nixpkgs, ...} @ inputs: let
-    pkgs = nixpkgs.legacyPackages.x86_64-linux;
+  outputs = {
+    self,
+    nixpkgs,
+    devshell,
+  }: let
+    system = "x86_64-linux";
+    pkgs = import nixpkgs {
+      inherit system;
+      overlays = [devshell.overlays.default];
+    };
   in {
-    devShells.x86_64-linux.default = with pkgs;
-      mkShell {
-        nativeBuildInputs = [rustc cargo];
-        buildInputs = [cargo-shuttle rustfmt];
+    devShells.${system}.default = with pkgs;
+      pkgs.devshell.mkShell {
+        packages = [rustc cargo rustfmt cargo-shuttle];
       };
   };
 }
