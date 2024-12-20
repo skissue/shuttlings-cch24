@@ -7,10 +7,10 @@ use itertools::Itertools;
 use jsonwebtoken::{errors::ErrorKind as JWTError, DecodingKey, EncodingKey, Header, Validation};
 use poem::{
     get, handler,
-    http::{header, HeaderMap, HeaderValue, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     post,
     web::{Data, Path, Query},
-    Body, EndpointExt, Response, ResponseBuilder, Route,
+    Body, EndpointExt, Response, Route,
 };
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{Mutex, RwLock};
-use uuid::{Timestamp, Uuid};
+use uuid::Uuid;
 
 #[handler]
 fn hello_bird() -> &'static str {
@@ -414,6 +414,19 @@ async fn quotes_draft(pool: Data<&PgPool>, body: Body) -> Response {
         .body(serde_json::to_string(&inserted).unwrap())
 }
 
+#[handler]
+async fn quotes_cite(pool: Data<&PgPool>, id: Path<Uuid>) -> Response {
+    let result = sqlx::query_as!(Quote, "SELECT * FROM quotes WHERE id = $1", *id)
+        .fetch_optional(*pool)
+        .await
+        .unwrap();
+    let Some(quote) = result else {
+        return StatusCode::NOT_FOUND.into();
+    };
+
+    serde_json::to_string(&quote).unwrap().into()
+}
+
 #[shuttle_runtime::main]
 async fn poem(
     #[shuttle_shared_db::Postgres(local_uri = "postgres://localhost:5432/")] pool: sqlx::PgPool,
@@ -437,6 +450,7 @@ async fn poem(
         .at("/16/decode", post(decode_old_gift))
         .at("/19/reset", post(quotes_reset))
         .at("/19/draft", post(quotes_draft))
+        .at("/19/cite/:id", get(quotes_cite))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
