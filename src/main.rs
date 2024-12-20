@@ -14,6 +14,7 @@ use poem::{
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 use shuttle_poem::ShuttlePoem;
+use sqlx::PgPool;
 use std::{
     collections::HashSet,
     net::{Ipv4Addr, Ipv6Addr},
@@ -374,6 +375,14 @@ async fn decode_old_gift(body: String) -> Response {
     decoded.to_string().into()
 }
 
+#[handler]
+async fn quotes_reset(pool: Data<&PgPool>) {
+    sqlx::query!("DELETE FROM quotes")
+        .execute(*pool)
+        .await
+        .expect("Clearing table shouldn't fail");
+}
+
 #[shuttle_runtime::main]
 async fn poem(
     #[shuttle_shared_db::Postgres(local_uri = "postgres://localhost:5432/")] pool: sqlx::PgPool,
@@ -395,6 +404,7 @@ async fn poem(
         .at("/16/wrap", post(wrap_gift))
         .at("/16/unwrap", get(unwrap_gift))
         .at("/16/decode", post(decode_old_gift))
+        .at("/19/reset", post(quotes_reset))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
