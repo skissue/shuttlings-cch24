@@ -376,7 +376,7 @@ async fn decode_old_gift(body: String) -> Response {
 
 #[shuttle_runtime::main]
 async fn poem(
-    #[shuttle_shared_db::Postgres] pool: sqlx::PgPool,
+    #[shuttle_shared_db::Postgres(local_uri = "postgres://localhost:5432/")] pool: sqlx::PgPool,
 ) -> ShuttlePoem<impl poem::Endpoint> {
     let app = Route::new()
         .at("/", get(hello_bird))
