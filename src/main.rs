@@ -1,6 +1,7 @@
 mod connect4;
 
 use cargo_manifest::Manifest;
+use chrono::{DateTime, Utc};
 use connect4::{Connect4, MoveError, Tile};
 use itertools::Itertools;
 use jsonwebtoken::{errors::ErrorKind as JWTError, DecodingKey, EncodingKey, Header, Validation};
@@ -9,7 +10,7 @@ use poem::{
     http::{header, HeaderMap, HeaderValue, StatusCode},
     post,
     web::{Data, Path, Query},
-    EndpointExt, Response, Route,
+    Body, EndpointExt, Response, ResponseBuilder, Route,
 };
 use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{Mutex, RwLock};
+use uuid::{Timestamp, Uuid};
 
 #[handler]
 fn hello_bird() -> &'static str {
@@ -375,12 +377,41 @@ async fn decode_old_gift(body: String) -> Response {
     decoded.to_string().into()
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct Quote {
+    id: Option<Uuid>,
+    author: String,
+    quote: String,
+    version: Option<i32>,
+    created_at: Option<DateTime<Utc>>,
+}
+
 #[handler]
 async fn quotes_reset(pool: Data<&PgPool>) {
     sqlx::query!("DELETE FROM quotes")
         .execute(*pool)
         .await
         .expect("Clearing table shouldn't fail");
+}
+
+#[handler]
+async fn quotes_draft(pool: Data<&PgPool>, body: Body) -> Response {
+    let quote: Quote = body.into_json().await.unwrap();
+
+    let inserted = sqlx::query_as!(
+        Quote,
+        "INSERT INTO quotes (id, author, quote) VALUES ($1, $2, $3) RETURNING *",
+        Uuid::new_v4(),
+        quote.author,
+        quote.quote
+    )
+    .fetch_one(*pool)
+    .await
+    .unwrap();
+
+    Response::builder()
+        .status(StatusCode::CREATED)
+        .body(serde_json::to_string(&inserted).unwrap())
 }
 
 #[shuttle_runtime::main]
@@ -405,6 +436,7 @@ async fn poem(
         .at("/16/unwrap", get(unwrap_gift))
         .at("/16/decode", post(decode_old_gift))
         .at("/19/reset", post(quotes_reset))
+        .at("/19/draft", post(quotes_draft))
         .data(MilkBucket(Arc::new(Mutex::new(
             leaky_bucket::RateLimiter::builder()
                 .initial(5)
