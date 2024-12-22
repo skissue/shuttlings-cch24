@@ -2,6 +2,7 @@ mod connect4;
 mod day0;
 mod day2;
 mod day5;
+mod day9;
 
 use cargo_manifest::Manifest;
 use chrono::{DateTime, Utc};
@@ -31,67 +32,6 @@ use std::{
 };
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
-
-#[derive(Clone)]
-struct MilkBucket(Arc<Mutex<leaky_bucket::RateLimiter>>);
-
-#[derive(Serialize, Deserialize)]
-#[serde(untagged, deny_unknown_fields)]
-enum MilkConversion {
-    Liters { liters: f32 },
-    Gallons { gallons: f32 },
-    IHateTheBritish { litres: f32 },
-    IHateTheBritishMore { pints: f32 },
-}
-
-#[handler]
-async fn leaky_milk(headers: &HeaderMap, bucket: Data<&MilkBucket>, body: String) -> Response {
-    if !bucket.0 .0.lock().await.try_acquire(1) {
-        return Response::builder()
-            .status(StatusCode::TOO_MANY_REQUESTS)
-            .body("No milk available\n");
-    }
-
-    if headers
-        .get("Content-Type")
-        .map_or(false, |v| v == "application/json")
-    {
-        let Ok(conversion_request): Result<MilkConversion, _> = serde_json::from_str(&body) else {
-            return StatusCode::BAD_REQUEST.into();
-        };
-
-        let response = match conversion_request {
-            MilkConversion::Liters { liters } => {
-                let gallons = liters * 0.2641720524;
-                MilkConversion::Gallons { gallons }
-            }
-            MilkConversion::Gallons { gallons } => {
-                let liters = gallons * 3.785411784;
-                MilkConversion::Liters { liters }
-            }
-            MilkConversion::IHateTheBritish { litres } => {
-                let pints = litres * 1.75975;
-                MilkConversion::IHateTheBritishMore { pints }
-            }
-            MilkConversion::IHateTheBritishMore { pints } => {
-                let litres = pints * 0.56826;
-                MilkConversion::IHateTheBritish { litres }
-            }
-        };
-        return serde_json::to_string(&response).unwrap().into();
-    }
-
-    "Milk withdrawn\n".into()
-}
-
-#[handler]
-async fn fill_milk_bucket(bucket: Data<&MilkBucket>) {
-    *bucket.0 .0.lock().await = leaky_bucket::RateLimiter::builder()
-        .initial(5)
-        .max(5)
-        .interval(Duration::from_secs(1))
-        .build();
-}
 
 #[handler]
 async fn get_connect4_board(board: Data<&Arc<RwLock<Connect4>>>) -> String {
@@ -389,8 +329,7 @@ async fn poem(
         .nest_no_strip("/", day0::route())
         .nest("/2", day2::route())
         .nest("/5", day5::route())
-        .at("/9/milk", post(leaky_milk))
-        .at("/9/refill", post(fill_milk_bucket))
+        .nest("/9", day9::route())
         .at("/12/board", get(get_connect4_board))
         .at("/12/reset", post(reset_connect4_board))
         .at("/12/place/:team/:column", post(play_connect4))
@@ -404,13 +343,6 @@ async fn poem(
         .at("/19/undo/:id", put(quotes_update))
         .at("/19/remove/:id", delete(quotes_delete))
         .at("/19/list", get(quotes_paginate))
-        .data(MilkBucket(Arc::new(Mutex::new(
-            leaky_bucket::RateLimiter::builder()
-                .initial(5)
-                .max(5)
-                .interval(Duration::from_secs(1))
-                .build(),
-        ))))
         .data(Arc::new(RwLock::new(Connect4::empty())))
         .data(Connect4Rng(Arc::new(RwLock::new(
             rand::rngs::StdRng::seed_from_u64(2024),
