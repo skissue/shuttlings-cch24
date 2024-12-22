@@ -1,4 +1,5 @@
 mod connect4;
+mod day0;
 
 use cargo_manifest::Manifest;
 use chrono::{DateTime, Utc};
@@ -28,22 +29,6 @@ use std::{
 };
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
-
-#[handler]
-fn hello_bird() -> &'static str {
-    "Hello, bird!"
-}
-
-#[handler]
-fn seek() -> Response {
-    Response::builder()
-        .status(StatusCode::FOUND)
-        .header(
-            header::LOCATION,
-            "https://www.youtube.com/watch?v=9Gc4QTqslN4",
-        )
-        .body(())
-}
 
 #[derive(Deserialize)]
 struct EncryptParams {
@@ -555,8 +540,7 @@ async fn poem(
         .expect("Failed to run migrations");
 
     let app = Route::new()
-        .at("/", get(hello_bird))
-        .at("/-1/seek", get(seek))
+        .nest_no_strip("/", day0::route())
         .at("/2/dest", get(encrypt_address))
         .at("/2/key", get(get_address_key))
         .at("/2/v6/dest", get(encrypt_address_ipv6))
