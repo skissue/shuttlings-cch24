@@ -1,12 +1,11 @@
-mod connect4;
 mod day0;
+mod day12;
 mod day2;
 mod day5;
 mod day9;
 
 use cargo_manifest::Manifest;
 use chrono::{DateTime, Utc};
-use connect4::{Connect4, MoveError, Tile};
 use itertools::Itertools;
 use jsonwebtoken::{errors::ErrorKind as JWTError, DecodingKey, EncodingKey, Header, Validation};
 use poem::{
@@ -32,53 +31,6 @@ use std::{
 };
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
-
-#[handler]
-async fn get_connect4_board(board: Data<&Arc<RwLock<Connect4>>>) -> String {
-    format!("{}", board.0.read().await)
-}
-
-#[handler]
-async fn reset_connect4_board(
-    board: Data<&Arc<RwLock<Connect4>>>,
-    rng: Data<&Connect4Rng>,
-) -> String {
-    *board.0.write().await = Connect4::empty();
-    *rng.0 .0.write().await = rand::rngs::StdRng::seed_from_u64(2024);
-    format!("{}", board.0.read().await)
-}
-
-#[handler]
-async fn play_connect4(
-    board: Data<&Arc<RwLock<Connect4>>>,
-    Path((team, column)): Path<(String, String)>,
-) -> Response {
-    let team = match team.as_str() {
-        "cookie" => Tile::Cookie,
-        "milk" => Tile::Milk,
-        _ => return StatusCode::BAD_REQUEST.into(),
-    };
-    let Ok(column) = column.parse() else {
-        return StatusCode::BAD_REQUEST.into();
-    };
-
-    let mut board = board.0.write().await;
-    match board.play(team, column) {
-        Err(MoveError::InvalidColumn) => StatusCode::BAD_REQUEST.into(),
-        Err(MoveError::ColumnFull) | Err(MoveError::GameOver) => Response::builder()
-            .status(StatusCode::SERVICE_UNAVAILABLE)
-            .body(format!("{}", board)),
-        _ => format!("{}", board).into(),
-    }
-}
-
-#[derive(Clone)]
-struct Connect4Rng(Arc<RwLock<rand::rngs::StdRng>>);
-
-#[handler]
-async fn get_random_connect4(rng: Data<&Connect4Rng>) -> String {
-    format!("{}", Connect4::random(&mut *rng.0 .0.write().await))
-}
 
 #[handler]
 async fn wrap_gift(body: String) -> Response {
@@ -330,10 +282,7 @@ async fn poem(
         .nest("/2", day2::route())
         .nest("/5", day5::route())
         .nest("/9", day9::route())
-        .at("/12/board", get(get_connect4_board))
-        .at("/12/reset", post(reset_connect4_board))
-        .at("/12/place/:team/:column", post(play_connect4))
-        .at("/12/random-board", get(get_random_connect4))
+        .nest("/12", day12::route())
         .at("/16/wrap", post(wrap_gift))
         .at("/16/unwrap", get(unwrap_gift))
         .at("/16/decode", post(decode_old_gift))
@@ -343,10 +292,6 @@ async fn poem(
         .at("/19/undo/:id", put(quotes_update))
         .at("/19/remove/:id", delete(quotes_delete))
         .at("/19/list", get(quotes_paginate))
-        .data(Arc::new(RwLock::new(Connect4::empty())))
-        .data(Connect4Rng(Arc::new(RwLock::new(
-            rand::rngs::StdRng::seed_from_u64(2024),
-        ))))
         .data(pool)
         .data(PaginationStatuses(Arc::new(Mutex::new(HashMap::new()))));
 
