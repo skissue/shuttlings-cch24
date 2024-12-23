@@ -7,7 +7,7 @@ mod day23;
 mod day5;
 mod day9;
 
-use poem::{EndpointExt as _, Route};
+use poem::{middleware::Tracing, EndpointExt as _, Route};
 use shuttle_poem::ShuttlePoem;
 
 #[shuttle_runtime::main]
@@ -28,7 +28,8 @@ async fn poem(
         .nest("/16", day16::route())
         .nest("/19", day19::route())
         .nest_no_strip("/", day23::route())
-        .data(pool);
+        .data(pool)
+        .with(Tracing);
 
     Ok(app.into())
 }

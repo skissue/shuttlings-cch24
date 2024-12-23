@@ -44,7 +44,7 @@ async fn ornament_iteration(Path((state, n)): Path<(String, String)>) -> Result<
     };
 
     Ok(format!(
-        r#"<div class="ornament{}" id="ornament{}" hx-trigger="load changed delay:2000ms once" hx-get="/23/ornament/{}/{}" hx-swap="outerHTML"></div>"#,
+        r#"<div class="ornament{}" id="ornament{}" hx-trigger="load delay:2s once" hx-get="/23/ornament/{}/{}" hx-swap="outerHTML"></div>"#,
         if state == "on" { " on" } else { "" },
         n,
         next_state,
