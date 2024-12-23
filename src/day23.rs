@@ -42,12 +42,14 @@ async fn ornament_iteration(Path((state, n)): Path<(String, String)>) -> Result<
         "off" => "on",
         _ => return Err(StatusCode::IM_A_TEAPOT.into()),
     };
+    let mut buf = String::new();
+    let escaped = html_escape::encode_double_quoted_attribute_to_string(n, &mut buf);
 
     Ok(format!(
         r#"<div class="ornament{}" id="ornament{}" hx-trigger="load delay:2s once" hx-get="/23/ornament/{}/{}" hx-swap="outerHTML"></div>"#,
         if state == "on" { " on" } else { "" },
-        n,
+        escaped,
         next_state,
-        n,
+        escaped,
     ))
 }
