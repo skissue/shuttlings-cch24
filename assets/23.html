@@ -1,6 +1,6 @@
-<html><head>
-<meta http-equiv="content-type" content="text/html; charset=windows-1252">
-        <script src="23_files/htmx.min.js"></script>
+<html>
+    <head>
+        <script src="https://unpkg.com/htmx.org@2.0.4"></script>
         <style>
 body {
     --darkgrey: #0d0d0d;
@@ -216,7 +216,7 @@ main {
     border-radius: 50%;
 }
         </style>
-    <style>      .htmx-indicator{opacity:0}      .htmx-request .htmx-indicator{opacity:1; transition: opacity 200ms ease-in;}      .htmx-request.htmx-indicator{opacity:1; transition: opacity 200ms ease-in;}      </style></head>
+    </head>
     <body>
         <main>
             <div class="tree">
@@ -256,23 +256,22 @@ main {
                 <div class="present-wrap present-wrap3"></div>
                 <div class="present-wrap present-wrap4"></div>
                 <div id="star"></div>
-                <button id="switch" hx-get="/23/star" hx-swap="outerHTML" hx-target="#star" class="">
+                <button id="switch" hx-get="/23/star" hx-swap="outerHTML" hx-target="#star">
                     Light the star
                 </button>
             </div>
             <div class="text">Merry Christmas!</div>
             <div class="text">/ Shuttle</div>
-            <div class="text"><img class="rocket" src="23_files/rocket.gif"></div>
+            <div class="text"><img class="rocket" src="https://console.shuttle.dev/images/rocket.gif"></div>
             <div class="spacer"></div>
             <div class="text">Bonus task:</div>
             <form hx-post="/23/lockfile" enctype="multipart/form-data" hx-target="#lockfilecanvas">
-                <input type="file" name="lockfile" required="">
+                <input type="file" name="lockfile" required>
                 <br>
                 <br>
                 <button type="submit">Submit lockfile</button>
             </form>
             <div id="lockfilecanvas"></div>
         </main>
-    
-
-</body></html>
+    </body>
+</html>
