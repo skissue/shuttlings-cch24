@@ -7,15 +7,14 @@ use toml::Table;
 
 pub fn route() -> Route {
     Route::new()
-        .at("/assets/23.html", get(html))
-        .at("/23/star", get(light_star))
-        .at("/23/present/:color", get(cycle_present_color))
-        .at("/23/ornament/:state/:n", get(ornament_iteration))
-        .at("/23/lockfile", post(bake_a_cake))
+        .at("/star", get(light_star))
+        .at("/present/:color", get(cycle_present_color))
+        .at("/ornament/:state/:n", get(ornament_iteration))
+        .at("/lockfile", post(bake_a_cake))
 }
 
 #[handler]
-async fn html() -> impl IntoResponse {
+pub async fn html() -> impl IntoResponse {
     Html(include_str!("../23.html"))
 }
 
