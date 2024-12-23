@@ -1,18 +1,22 @@
 use http::StatusCode;
 use poem::{
-    endpoint::StaticFilesEndpoint,
-    web::{Multipart, Path},
+    web::{Html, Multipart, Path},
     *,
 };
 use toml::Table;
 
 pub fn route() -> Route {
     Route::new()
-        .nest("/assets", StaticFilesEndpoint::new("assets"))
+        .at("/assets/23.html", get(html))
         .at("/23/star", get(light_star))
         .at("/23/present/:color", get(cycle_present_color))
         .at("/23/ornament/:state/:n", get(ornament_iteration))
         .at("/23/lockfile", post(bake_a_cake))
+}
+
+#[handler]
+async fn html() -> impl IntoResponse {
+    Html(include_str!("../23.html"))
 }
 
 #[handler]
