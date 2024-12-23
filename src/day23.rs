@@ -6,6 +6,7 @@ pub fn route() -> Route {
         .nest("/assets", StaticFilesEndpoint::new("assets"))
         .at("/23/star", get(light_star))
         .at("/23/present/:color", get(cycle_present_color))
+        .at("/23/ornament/:state/:n", get(ornament_iteration))
 }
 
 #[handler]
@@ -31,5 +32,22 @@ async fn cycle_present_color(color: Path<String>) -> Result<impl IntoResponse> {
           </div>
         "#,
         *color, next
+    ))
+}
+
+#[handler]
+async fn ornament_iteration(Path((state, n)): Path<(String, String)>) -> Result<impl IntoResponse> {
+    let next_state = match state.as_str() {
+        "on" => "off",
+        "off" => "on",
+        _ => return Err(StatusCode::IM_A_TEAPOT.into()),
+    };
+
+    Ok(format!(
+        r#"<div class="ornament{}" id="ornament{}" hx-trigger="load changed delay:2000ms once" hx-get="/23/ornament/{}/{}" hx-swap="outerHTML"></div>"#,
+        if state == "on" { " on" } else { "" },
+        n,
+        next_state,
+        n,
     ))
 }
